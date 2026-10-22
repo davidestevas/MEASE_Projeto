@@ -1,11 +1,12 @@
-# Ignorar ficheiros pesados e pastas originais
+# Ignorar ficheiros pesados de dados
 data/raw/
 *.tif
 *.tiff
 
-# Ignorar ficheiros do Python
+# Ignorar ficheiros gerados pelo Python
 __pycache__/
 *.pyc
+*.pyo
 
 # Ignorar ficheiros de sistema do macOS
 .DS_Store
