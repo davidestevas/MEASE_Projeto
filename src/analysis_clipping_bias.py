@@ -3,6 +3,7 @@ import glob
 import imageio.v3 as iio
 import os
 from utils import calcular_matriz_ART_inversa
+import matplotlib.pyplot as plt
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DIR_BG = os.path.join(BASE_DIR, 'data', 'raw', 'Background', 'tiff', '*.tif')
@@ -51,3 +52,24 @@ bias_relativo = (diferenca_absoluta[mascara] / media_com_clipping[mascara]) * 10
 print(f"\nMax Absolute Bias from clipping: {np.max(diferenca_absoluta):.4f}")
 print(f"Median Relative Bias in reactive zone: {np.median(bias_relativo):.2f}%")
 print(f"Max Relative Bias in reactive zone: {np.max(bias_relativo):.2f}%")
+
+# 5. Diagnóstico espacial do bias
+np.save(os.path.join(DIR_PROCESSED, 'media_sem_clipping.npy'), media_sem_clipping)
+
+idx = np.unravel_index(np.argmax(diferenca_absoluta), diferenca_absoluta.shape)
+print(f"Local do bias máximo: Z={idx[0]}, R={idx[1]}")
+print(f"  com clipping: {media_com_clipping[idx]:.3f} | sem clipping: {media_sem_clipping[idx]:.3f}")
+
+# Bias apenas no núcleo de alto sinal (20% do máximo) - métrica honesta
+mascara_nucleo = media_com_clipping > 0.2 * media_com_clipping.max()
+bias_nucleo = (diferenca_absoluta[mascara_nucleo] / media_com_clipping[mascara_nucleo]) * 100
+print(f"Bias relativo MEDIANO no núcleo de alto sinal: {np.median(bias_nucleo):.1f}%")
+
+# Figura lado a lado
+fig, axs = plt.subplots(1, 2, figsize=(12, 5))
+for ax, campo, titulo in zip(axs, [media_com_clipping, media_sem_clipping],
+                              ['Mean Field (with zero-clipping)', 'Mean Field (WITHOUT clipping)']):
+    im = ax.imshow(campo, cmap='RdBu_r', vmin=-np.max(np.abs(media_sem_clipping)),
+                   vmax=np.max(np.abs(media_sem_clipping)))
+    ax.set_title(titulo); fig.colorbar(im, ax=ax, fraction=0.046)
+plt.savefig(os.path.join(DIR_PROCESSED, 'clipping_comparison.png'), dpi=300, bbox_inches='tight')
