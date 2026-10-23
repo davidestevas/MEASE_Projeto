@@ -20,30 +20,18 @@ print("-> CONCLUSÃO: A Abordagem 2 gera valores negativos não-físicos, confir
 # ==========================================
 # 2. Incerteza Estatística e Ruído do Sensor
 # ==========================================
-print("--- 2. CONVERGÊNCIA E RUÍDO (BACKGROUND) ---")
+# (Substituir a Secção 2 no analysis_uncertainty.py)
+print("--- 2. CONVERGÊNCIA E RUÍDO ---")
 N_CHAMA = 3027
 media_ab1_chama = np.load(os.path.join(DIR_PROCESSED, 'media_ab1.npy'))
-
-# Erro Padrão da Média e Erro Relativo
 erro_padrao = rms_ab1_chama / np.sqrt(N_CHAMA)
-erro_maximo = np.max(erro_padrao)
 
-# Evitar dividir por zero nas zonas mortas (usamos apenas a frente de chama onde o sinal é forte)
 mascara_sinal = media_ab1_chama > 0.05
-erro_relativo_max = np.max(erro_padrao[mascara_sinal] / media_ab1_chama[mascara_sinal]) * 100
+erros_relativos = (erro_padrao[mascara_sinal] / media_ab1_chama[mascara_sinal]) * 100
 
-print(f"Erro Padrão Absoluto Máximo: {erro_maximo:.4f}")
-print(f"Erro Relativo Máximo (na zona de reação): {erro_relativo_max:.2f}%")
-
-# Ruído do Fundo (Dark Noise e iluminação espúria)
-arquivos_bg = glob.glob(DIR_BG)
-# Carregar o bloco 3D inteiro para avaliar estatística ao longo do tempo
-bg_stack = np.array([iio.imread(arq).astype(float) for arq in arquivos_bg])
-bg_ruido_std = np.std(bg_stack, axis=0)
-bg_medio = np.mean(bg_stack, axis=0)
-
-print(f"Ruído médio do Fundo (Desvio Padrão): {np.mean(bg_ruido_std):.2f} níveis de cinza.")
-print(f"Ruído máximo espúrio no Fundo: {np.max(bg_ruido_std):.2f} níveis de cinza.\n")
+print(f"Absolute Standard Error (Max): {np.max(erro_padrao):.4f}")
+print(f"Max Relative Error (reactive zone boundaries): {np.max(erros_relativos):.2f}%")
+print(f"Median Relative Error (typical reactive zone): {np.median(erros_relativos):.2f}%")
 
 # ==========================================
 # 3. Validação do Alinhamento do Bluff-Body
