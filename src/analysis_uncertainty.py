@@ -20,7 +20,6 @@ print("-> CONCLUSÃO: A Abordagem 2 gera valores negativos não-físicos, confir
 # ==========================================
 # 2. Incerteza Estatística e Ruído do Sensor
 # ==========================================
-# (Substituir a Secção 2 no analysis_uncertainty.py)
 print("--- 2. CONVERGÊNCIA E RUÍDO ---")
 N_CHAMA = 3027
 media_ab1_chama = np.load(os.path.join(DIR_PROCESSED, 'media_ab1.npy'))
@@ -31,13 +30,22 @@ erros_relativos = (erro_padrao[mascara_sinal] / media_ab1_chama[mascara_sinal]) 
 
 print(f"Absolute Standard Error (Max): {np.max(erro_padrao):.4f}")
 print(f"Max Relative Error (reactive zone boundaries): {np.max(erros_relativos):.2f}%")
-print(f"Median Relative Error (typical reactive zone): {np.median(erros_relativos):.2f}%")
+print(f"Median Relative Error (typical reactive zone): {np.median(erros_relativos):.2f}%\n")
+
+print("A calcular ruído de fundo e matriz média (aguarda uns segundos)...")
+arquivos_bg = glob.glob(DIR_BG)
+bg_stack = np.array([iio.imread(arq).astype(float) for arq in arquivos_bg])
+bg_ruido_std = np.std(bg_stack, axis=0)
+bg_medio = np.mean(bg_stack, axis=0)
+
+print(f"Ruído médio do Fundo (Desvio Padrão): {np.mean(bg_ruido_std):.2f} níveis de cinza.")
+print(f"Ruído máximo espúrio no Fundo: {np.max(bg_ruido_std):.2f} níveis de cinza.\n")
 
 # ==========================================
 # 3. Validação do Alinhamento do Bluff-Body
 # ==========================================
 print("--- 3. ALINHAMENTO DO EIXO DE SIMETRIA ---")
-# Projeção horizontal do background médio completo (não apenas 1 frame)
+# Projeção horizontal do background médio completo
 perfil_horizontal = np.sum(bg_medio, axis=0)
 limiar_sombra = np.min(perfil_horizontal) + (np.max(perfil_horizontal) - np.min(perfil_horizontal)) * 0.2
 indices_sombra = np.where(perfil_horizontal < limiar_sombra)[0]
