@@ -8,19 +8,19 @@ DIR_PROCESSED = os.path.join(BASE_DIR, 'data', 'processed')
 DIR_BG = os.path.join(BASE_DIR, 'data', 'raw', 'Background', 'tiff', '*.tif')
 
 # ==========================================
-# 1. Prova Matemática: Falha da Abordagem 2
+# 1. Mathematical Proof: Failure of Approach 2
 # ==========================================
-print("--- 1. ANÁLISE FÍSICA DO RMS ---")
+print("--- 1. PHYSICAL ANALYSIS OF RMS ---")
 rms_ab1_chama = np.load(os.path.join(DIR_PROCESSED, 'rms_ab1.npy'))
 rms_ab2_chama = np.load(os.path.join(DIR_PROCESSED, 'rms_ab2.npy'))
-print(f"Abordagem 1 (Tomografia -> Stats): Min = {np.min(rms_ab1_chama):.4f} | Max = {np.max(rms_ab1_chama):.4f}")
-print(f"Abordagem 2 (Stats -> Tomografia): Min = {np.min(rms_ab2_chama):.4f} | Max = {np.max(rms_ab2_chama):.4f}")
-print("-> CONCLUSÃO: A Abordagem 2 gera valores negativos não-físicos, confirmando que operadores não-lineares (RMS) não comutam com a matriz inversa de Abel.\n")
+print(f"Approach 1 (Tomography -> Stats): Min = {np.min(rms_ab1_chama):.4f} | Max = {np.max(rms_ab1_chama):.4f}")
+print(f"Approach 2 (Stats -> Tomography): Min = {np.min(rms_ab2_chama):.4f} | Max = {np.max(rms_ab2_chama):.4f}")
+print("-> CONCLUSION: Approach 2 generates non-physical negative values, confirming that non-linear operators (RMS) do not commute with the inverse Abel matrix.\n")
 
 # ==========================================
-# 2. Incerteza Estatística e Ruído do Sensor
+# 2. Statistical Uncertainty and Sensor Noise
 # ==========================================
-print("--- 2. CONVERGÊNCIA E RUÍDO ---")
+print("--- 2. CONVERGENCE AND NOISE ---")
 N_CHAMA = 3027
 media_ab1_chama = np.load(os.path.join(DIR_PROCESSED, 'media_ab1.npy'))
 erro_padrao = rms_ab1_chama / np.sqrt(N_CHAMA)
@@ -32,34 +32,5 @@ print(f"Absolute Standard Error (Max): {np.max(erro_padrao):.4f}")
 print(f"Max Relative Error (reactive zone boundaries): {np.max(erros_relativos):.2f}%")
 print(f"Median Relative Error (typical reactive zone): {np.median(erros_relativos):.2f}%\n")
 
-print("A calcular ruído de fundo e matriz média (aguarda uns segundos)...")
-arquivos_bg = glob.glob(DIR_BG)
-bg_stack = np.array([iio.imread(arq).astype(float) for arq in arquivos_bg])
-bg_ruido_std = np.std(bg_stack, axis=0)
-bg_medio = np.mean(bg_stack, axis=0)
-
-print(f"Ruído médio do Fundo (Desvio Padrão): {np.mean(bg_ruido_std):.2f} níveis de cinza.")
-print(f"Ruído máximo espúrio no Fundo: {np.max(bg_ruido_std):.2f} níveis de cinza.\n")
-
-# ==========================================
-# 3. Validação do Alinhamento do Bluff-Body
-# ==========================================
-print("--- 3. ALINHAMENTO DO EIXO DE SIMETRIA ---")
-# Projeção horizontal do background médio completo
-perfil_horizontal = np.sum(bg_medio, axis=0)
-limiar_sombra = np.min(perfil_horizontal) + (np.max(perfil_horizontal) - np.min(perfil_horizontal)) * 0.2
-indices_sombra = np.where(perfil_horizontal < limiar_sombra)[0]
-
-centro_estimado = np.mean(indices_sombra)
-desvio_pixeis = abs(256 - centro_estimado)
-
-print(f"Centro assumido (hardcode): 256.0 px")
-print(f"Centro detetado opticamente: {centro_estimado:.1f} px")
-
-# Conclusão condicional
-if desvio_pixeis <= 2.0:
-    print(f"-> AVALIAÇÃO: Desvio de {desvio_pixeis:.1f} px é negligenciável para o algoritmo Onion-Peeling.")
-elif desvio_pixeis <= 8.0:
-    print(f"-> AVALIAÇÃO: Desvio moderado ({desvio_pixeis:.1f} px). Aceitável, mas introduz ligeira assimetria na reconstrução.")
-else:
-    print(f"-> AVALIAÇÃO: Desvio Crítico! A matriz geométrica está desfasada em {desvio_pixeis:.1f} px. Necessário ajustar 'col_simetria' no código base.")
+print("Calculating background noise and mean matrix (please wait a few seconds)...")
+arquivos_bg = glob
