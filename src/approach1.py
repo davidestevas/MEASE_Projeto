@@ -54,7 +54,7 @@ for arquivo in arquivos_chama:
     soma_tomo_sq += (tomo_inst ** 2)
 
 media_ab1 = soma_tomo / n_chama
-rms_ab1 = np.sqrt((soma_tomo_sq / n_chama) - (media_ab1 ** 2))
+rms_ab1 = np.sqrt(np.maximum((soma_tomo_sq / n_chama) - (media_ab1 ** 2), 0))
 
 # ==========================================
 # 3. Execution of Approach 2 (Mean/RMS -> Tomo)
@@ -73,7 +73,7 @@ for arquivo in arquivos_chama:
     soma_raw_sq += (metade_dir ** 2)
 
 media_raw = soma_raw / n_chama
-rms_raw = np.sqrt((soma_raw_sq / n_chama) - (media_raw ** 2))
+rms_raw = np.sqrt(np.maximum((soma_raw_sq / n_chama) - (media_raw ** 2), 0))
 
 media_ab2 = aplicar_tomografia(media_raw, A_inv_precalculada)
 rms_ab2 = aplicar_tomografia(rms_raw, A_inv_precalculada)
