@@ -85,7 +85,7 @@ r_grid = np.arange(NUM_PIXEIS_RAIO, dtype=np.float64)
 
 # Synthetic Schlieren-like radial profile (derivative of Gaussian density profile)
 R_flame_syn = 80.0
-W_syn = 25.0
+W_syn = 8.8
 f_true = -((r_grid - R_flame_syn) / W_syn) * np.exp(-((r_grid - R_flame_syn) / W_syn) ** 2)
 p_exact = A_forward @ f_true
 
