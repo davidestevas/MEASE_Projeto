@@ -46,7 +46,7 @@ for arquivo in arquivos_chama:
     img = iio.imread(arquivo).astype(np.float64)
     img_sub = img - bg_medio
     
-    # CLIPPING REMOVIDO: img_sub[img_sub < 0] = 0
+    # img_sub[img_sub < 0] = 0
     metade_dir = img_sub[:, col_simetria:]
     
     tomo_inst = aplicar_tomografia(metade_dir, A_inv_precalculada)

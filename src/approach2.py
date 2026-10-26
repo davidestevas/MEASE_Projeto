@@ -54,7 +54,7 @@ for i, arquivo in enumerate(arquivos_iso):
         
     img = iio.imread(arquivo).astype(np.float64)
     img_sub = img - bg_medio
-    img_sub[img_sub < 0] = 0 
+    #img_sub[img_sub < 0] = 0 
     metade_dir = img_sub[:, col_simetria:]
     
     # Approach 1
@@ -68,10 +68,10 @@ for i, arquivo in enumerate(arquivos_iso):
 
 # Final calculations for ISO
 media_iso_ab1 = soma_tomo / n_iso
-rms_iso_ab1 = np.sqrt((soma_tomo_sq / n_iso) - (media_iso_ab1 ** 2))
+rms_iso_ab1 = np.sqrt(np.maximum((soma_tomo_sq / n_iso) - (media_iso_ab1 ** 2), 0))
 
 media_raw = soma_raw / n_iso
-rms_raw = np.sqrt((soma_raw_sq / n_iso) - (media_raw ** 2))
+rms_raw = np.sqrt(np.maximum((soma_raw_sq / n_iso) - (media_raw ** 2), 0))
 media_iso_ab2 = aplicar_tomografia(media_raw, A_inv_precalculada)
 rms_iso_ab2 = aplicar_tomografia(rms_raw, A_inv_precalculada)
 
