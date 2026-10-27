@@ -6,7 +6,7 @@
 * **Faculdade:** Instituto Superior Técnico
 * **Tema do Trabalho:** Reconstrução Tomográfica 3D de Escoamentos Axissimétricos por Técnica de Schlieren e Transformada Inversa de Abel (*Onion-Peeling* / ART) e Análise da Comutatividade de Operadores Estatísticos
 * **Grupo:** Grupo 22
-* **Autores:** David Esteves, *[Inserir Nome e Número Mecanográfico dos restantes elementos do grupo]*
+* **Autores:** David Esteves (ist1116011), David Ferreira (ist 1107077) , Daniel Ascenso (ist 1113290)
 * **Ano Letivo:** 2026/2027
 
 ### Breve Introdução
