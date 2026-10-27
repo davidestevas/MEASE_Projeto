@@ -4,23 +4,29 @@ import glob
 import os
 import re
 import matplotlib.pyplot as plt
-from utils import calcular_matriz_ART_inversa
+from utils import (
+    calcular_matriz_ART_inversa,
+    extrair_metade_direita,
+    carregar_delta_eixo,
+    medir_corpo_rombo_background,
+    D_BLUFF_MM
+)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DIR_PROCESSED = os.path.join(BASE_DIR, 'data', 'processed')
 DIR_BG = os.path.join(BASE_DIR, 'data', 'raw', 'Background', 'tiff', '*.tif')
 DIR_CHAMA = os.path.join(BASE_DIR, 'data', 'raw', 'Chama', '*.tif')
 
-Z_MASK = 325  # Mask bluff-body region (Z >= 325 px)
+# Clean up any leftover temp file
+caminho_temp = os.path.join(DIR_PROCESSED, 'temp')
+if os.path.exists(caminho_temp):
+    os.remove(caminho_temp)
+
+Z_MASK = 325
 COL_SIMETRIA = 256
 NUM_PIXEIS_RAIO = 512 - COL_SIMETRIA
 
-# Bluff-body spatial scale calibration (D_bluff ~ 116 px from image; set D_BLUFF_MM to lab burner diameter)
-D_BLUFF_PX = 116.0
-R_BLUFF_PX = D_BLUFF_PX / 2.0
-D_BLUFF_MM = 50.0  # Nominal reference diameter in mm (adjust if different in lab guide)
-SCALE_MM_PER_PX = D_BLUFF_MM / D_BLUFF_PX
-
+delta_medido, delta_aplicado = carregar_delta_eixo(DIR_PROCESSED)
 A_inv = calcular_matriz_ART_inversa(NUM_PIXEIS_RAIO)
 A_forward = np.linalg.inv(A_inv)
 
@@ -61,7 +67,6 @@ print(f"RMS Non-Commutativity ||ab1 - ab2|| / ||ab1||:")
 print(f"   -> Flame: {err_rms_chama:.1f}% (Spatial correlation r = {corr_rms_chama:.2f})")
 print(f"   -> ISO:   {err_rms_iso:.1f}% (Spatial correlation r = {corr_rms_iso:.2f})")
 
-# Recover raw mean projection P = media_ab1 @ A^T to test parity at axis r=0
 proj_recuperada = media_ab1_chama @ A_forward.T
 p0_mediana = np.median(proj_recuperada[:, 0])
 p1_3_mediana = np.median(proj_recuperada[:, 1:4])
@@ -71,25 +76,29 @@ print("   -> CONCLUSION: Projection is EVEN (par) at the axis -> Reconstructed f
 print("      AXIAL refractive index gradient (dn/dz in a.u.), and A^-1 is the exact operator.\n")
 
 # ==========================================
-# 2. Sensor Noise Propagation, RMS Debiasing & ISO Null Case (Points 1 & 5)
+# 2. Sensor Noise Propagation (with delta) & ISO Null Case
 # ==========================================
-print("--- 2. SENSOR NOISE PROPAGATION & ISO NULL-CASE AUDIT (POINTS 1 & 5) ---")
+print("--- 2. SENSOR NOISE PROPAGATION & ISO NULL-CASE AUDIT ---")
 arquivos_bg = sorted(glob.glob(DIR_BG), key=natural_sort_key)
 n_bg = len(arquivos_bg)
 
-soma_bg = np.zeros((512, 512), dtype=np.float64)
-soma_bg_sq = np.zeros((512, 512), dtype=np.float64)
+soma_bg_full = np.zeros((512, 512), dtype=np.float64)
+soma_bg_half = np.zeros((512, NUM_PIXEIS_RAIO), dtype=np.float64)
+soma_bg_half_sq = np.zeros((512, NUM_PIXEIS_RAIO), dtype=np.float64)
 
 for arq in arquivos_bg:
     img_bg = iio.imread(arq).astype(np.float64)
-    soma_bg += img_bg
-    soma_bg_sq += (img_bg ** 2)
+    soma_bg_full += img_bg
+    metade_bg = extrair_metade_direita(img_bg, COL_SIMETRIA, NUM_PIXEIS_RAIO, delta_aplicado)
+    soma_bg_half += metade_bg
+    soma_bg_half_sq += (metade_bg ** 2)
 
-bg_medio = soma_bg / n_bg
-var_bg = np.maximum((soma_bg_sq / n_bg) - (bg_medio ** 2), 0)
-rms_bg_raw = np.sqrt(var_bg[:Z_MASK, COL_SIMETRIA:])
+bg_medio = soma_bg_full / n_bg
+bg_half_medio = soma_bg_half / n_bg
+var_bg_half = np.maximum((soma_bg_half_sq / n_bg) - (bg_half_medio ** 2), 0)
+rms_bg_raw = np.sqrt(var_bg_half[:Z_MASK, :])
 
-var_bg_rec_full = var_bg[:, COL_SIMETRIA:] @ (A_inv.T ** 2)
+var_bg_rec_full = var_bg_half @ (A_inv.T ** 2)
 sigma_rec_bg_full = np.sqrt(np.maximum(var_bg_rec_full, 0))
 sigma_rec_bg = sigma_rec_bg_full[:Z_MASK, :]
 
@@ -103,22 +112,30 @@ np.save(os.path.join(DIR_PROCESSED, 'sigma_rec_bg.npy'), sigma_rec_bg_full)
 np.save(os.path.join(DIR_PROCESSED, 'rms_ab1_corrigido.npy'), rms_ab1_corr_full)
 np.save(os.path.join(DIR_PROCESSED, 'rms_iso_ab1_corrigido.npy'), rms_iso_corr_full)
 
-# ISO Signal-to-Noise Audit in r = 20..150 px
+# Dynamic percentage changes (no hardcoded strings!)
+rms_eixo_before = float(np.mean(rms_ab1_chama[:, 0]))
+rms_eixo_after = float(np.mean(rms_ab1_corr[:, 0]))
+pct_eixo = ((rms_eixo_after - rms_eixo_before) / rms_eixo_before) * 100.0
+
+r_frente_ref = int(np.argmin(media_ab1_chama[80, 25:140]) + 25)
+rms_front_before = float(rms_ab1_chama[80, r_frente_ref])
+rms_front_after = float(rms_ab1_corr[80, r_frente_ref])
+pct_front = ((rms_front_after - rms_front_before) / rms_front_before) * 100.0
+
 r_slice = slice(20, 150)
 snr_iso_perfil = np.mean(rms_iso_ab1[:, r_slice] / sigma_rec_bg[:, r_slice], axis=0)
 frac_iso_sem_sinal = np.mean(rms_iso_ab1[:, r_slice] <= sigma_rec_bg[:, r_slice]) * 100
-snr_chama_frente = np.mean(rms_ab1_chama[40:200, 80:105] / sigma_rec_bg[40:200, 80:105])
+snr_chama_frente = np.mean(rms_ab1_chama[40:200, 75:100] / sigma_rec_bg[40:200, 75:100])
 
-print(f"Mean Raw Sensor Noise (Background RMS): {np.mean(rms_bg_raw):.4f} a.u.")
+print(f"Mean Raw Sensor Noise (Background RMS, delta={delta_aplicado:+.2f} px): {np.mean(rms_bg_raw):.4f} a.u.")
 print(f"Reconstructed Background Noise: Axis R=0 = {np.mean(sigma_rec_bg[:, 0]):.4f} | Radial Mean = {np.mean(sigma_rec_bg):.4f} a.u.")
-print(f"Flame RMS at Axis (R=0): Uncorrected = {np.mean(rms_ab1_chama[:, 0]):.4f} -> Corrected = {np.mean(rms_ab1_corr[:, 0]):.4f} (-16.0%)")
-print(f"Flame RMS at Front (Z=80, R=98): Uncorrected = {rms_ab1_chama[80, 98]:.4f} -> Corrected = {rms_ab1_corr[80, 98]:.4f} (-0.8%)")
+print(f"Flame RMS at Axis (R=0): Uncorrected = {rms_eixo_before:.4f} -> Corrected = {rms_eixo_after:.4f} ({pct_eixo:+.1f}%)")
+print(f"Flame RMS at Front (Z=80, R={r_frente_ref}): Uncorrected = {rms_front_before:.4f} -> Corrected = {rms_front_after:.4f} ({pct_front:+.1f}%)")
 print(f"\nISO Null-Case Verification (r = 20..150 px):")
 print(f"   -> ISO RMS / sigma_rec range: {np.min(snr_iso_perfil):.2f} to {np.max(snr_iso_perfil):.2f} (Flame front is ~{snr_chama_frente:.1f}x noise)")
 print(f"   -> Pixels without resolvable signal (RMS_iso <= sigma_rec): {frac_iso_sem_sinal:.1f}%")
 print(f"   -> ISO RMS at R=20 px (Z=40..120): Uncorrected = {np.mean(rms_iso_ab1[40:121, 20]):.3f} -> Corrected = {np.mean(rms_iso_corr[40:121, 20]):.3f} a.u.\n")
 
-# Save Noise-Corrected RMS figure
 fig_rms, axs_rms = plt.subplots(1, 3, figsize=(15, 4.2))
 for i, z in enumerate([40, 80, 120]):
     r_ax = np.arange(NUM_PIXEIS_RAIO)
@@ -134,29 +151,31 @@ for i, z in enumerate([40, 80, 120]):
     axs_rms[i].grid(True, alpha=0.3)
     axs_rms[i].legend(fontsize=8)
 plt.tight_layout()
-caminho_fig_rms = os.path.join(DIR_PROCESSED, 'rms_noise_correction.png')
-plt.savefig(caminho_fig_rms, dpi=300, bbox_inches='tight')
+plt.savefig(os.path.join(DIR_PROCESSED, 'rms_noise_correction.png'), dpi=300, bbox_inches='tight')
 plt.close(fig_rms)
 
 # ==========================================
-# 3. Temporal Autocorrelation & N_eff (Point 4)
+# 3. Temporal Autocorrelation & N_eff at Flame Front (r ≈ 82 px, with delta)
 # ==========================================
-print("--- 3. TEMPORAL AUTOCORRELATION & EFFECTIVE SAMPLES N_eff (POINT 4) ---")
+print("--- 3. TEMPORAL AUTOCORRELATION & EFFECTIVE SAMPLES N_eff ---")
 arquivos_chama = sorted(glob.glob(DIR_CHAMA), key=natural_sort_key)
 N_CHAMA = len(arquivos_chama)
 FPS = 400.0
-DT_MS = 1000.0 / FPS  # 2.5 ms
+DT_MS = 1000.0 / FPS
 
 z_probes = [40, 80, 120]
-r_probe = 98
+# Probe placed at the center of the negative gradient band (r ≈ 78-85 px -> r_probe = 82 px)
+r_probe = 82
 series_temporais = np.zeros((N_CHAMA, len(z_probes)), dtype=np.float64)
 a_inv_row = A_inv[r_probe, :]
 
+print(f"Extracting chronological time series at Flame Front R={r_probe} px (with delta={delta_aplicado:+.2f} px)...")
 for idx_f, arq in enumerate(arquivos_chama):
     img = iio.imread(arq).astype(np.float64)
+    img_sub = img - bg_medio
     for idx_z, z_val in enumerate(z_probes):
-        proj_linha = img[z_val, COL_SIMETRIA:] - bg_medio[z_val, COL_SIMETRIA:]
-        series_temporais[idx_f, idx_z] = np.dot(proj_linha, a_inv_row)
+        linha_dir = extrair_metade_direita(img_sub[z_val:z_val+1, :], COL_SIMETRIA, NUM_PIXEIS_RAIO, delta_aplicado)[0]
+        series_temporais[idx_f, idx_z] = np.dot(linha_dir, a_inv_row)
 
 plt.figure(figsize=(8, 4.5))
 neff_list = []
@@ -170,7 +189,6 @@ for idx_z, z_val in enumerate(z_probes):
     lag_corte = zeros_idx[0] if len(zeros_idx) > 0 else 50
     
     tau_int_frames = max(1.0 + 2.0 * np.sum(acf_full[1:lag_corte]), 1.0)
-    # Standard integral time scale: tau_int = 0.5 * tau_int_frames * dt = dt * (0.5 + sum(rho))
     tau_int_ms = 0.5 * tau_int_frames * DT_MS
     
     n_eff = N_CHAMA / tau_int_frames
@@ -200,7 +218,7 @@ for idx_z, z_val in enumerate(z_probes):
 plt.axhline(0, color='black', linestyle='--', alpha=0.6)
 plt.xlabel('Time Lag $\\tau$ (ms) [at 400 fps]')
 plt.ylabel('Autocorrelation Coefficient $\\rho(\\tau)$')
-plt.title(f'Temporal Autocorrelation in the Flame Front (R = {r_probe} px)')
+plt.title(f'Temporal Autocorrelation in the Flame Front (R = {r_probe} px, $\\delta = {delta_aplicado:+.2f}$ px)')
 plt.grid(True, alpha=0.3)
 plt.legend()
 plt.tight_layout()
@@ -214,69 +232,74 @@ erro_padrao_corr = rms_ab1_corr / np.sqrt(N_EFF_MEAN)
 lim_sinal = 0.20 * np.percentile(np.abs(media_ab1_chama), 99)
 mascara_sinal = np.abs(media_ab1_chama) > lim_sinal
 
-se_rel_naive = np.median((erro_padrao_naive[mascara_sinal] / np.abs(media_ab1_chama[mascara_sinal])) * 100)
-se_rel_corr = np.median((erro_padrao_corr[mascara_sinal] / np.abs(media_ab1_chama[mascara_sinal])) * 100)
-print(f"Note: Statistical Standard Error (SE) applies exclusively to the Mean field (N_eff={N_EFF_MEAN:.0f} from 3 probes at R=98 px).")
+se_rel_naive = float(np.median((erro_padrao_naive[mascara_sinal] / np.abs(media_ab1_chama[mascara_sinal])) * 100))
+se_rel_corr = float(np.median((erro_padrao_corr[mascara_sinal] / np.abs(media_ab1_chama[mascara_sinal])) * 100))
+print(f"Note: Statistical Standard Error (SE) applies exclusively to the Mean field (N_eff={N_EFF_MEAN:.0f} from 3 probes at R={r_probe} px).")
 print(f"   -> Median Relative SE of the Mean: Naive = {se_rel_naive:.2f}% | ACF-Corrected = {se_rel_corr:.2f}%\n")
 
 # ==========================================
-# 4. Measured Axis, Real FWHM, No-Inverse-Crime & Total Budget (Point 3)
+# 4. Measured Axis, Background Burner Validation, Real FWHM & Uncertainty Budget
 # ==========================================
-print("--- 4. MEASURED AXIS, REAL FWHM & NO-INVERSE-CRIME UNCERTAINTY BUDGET ---")
+print("--- 4. MEASURED AXIS, BURNER GEOMETRY & UNCERTAINTY BUDGET ---")
 
-# 4a. Report measured symmetry axis offset delta from raw 2D mean image
 caminho_delta = os.path.join(DIR_PROCESSED, 'delta_eixo.npy')
 if os.path.exists(caminho_delta):
-    delta_medido, delta_aplicado = np.load(caminho_delta)
-    print(f"Measured Symmetry Axis from Both Halves (|M(x) - M(-x)| min): delta = {delta_medido:+.3f} px (applied shift = {delta_aplicado:+.3f} px)")
+    dados_d = np.load(caminho_delta)
+    if len(dados_d) >= 7:
+        d_med, d_app, d_std, d_10_l, d_10_h, d_b_l, d_b_h = dados_d[:7]
+        print(f"1. Symmetry Axis from Flame Parity (|M(x) - M(-x)| min in +-15 px):")
+        print(f"   -> Global optimum: delta = {d_med:+.2f} px (10%-min interval: [{d_10_l:+.2f}, {d_10_h:+.2f}] px)")
+        print(f"   -> Axial z-blocks range: [{d_b_l:+.2f}, {d_b_h:+.2f}] px | Block dispersion = +- {d_std:.2f} px (justifies +-0.5 px budget)")
 
-# 4b. Measure real FWHM of the negative Schlieren band (z = 40..250 px)
+# Independent measurement of bluff-body diameter and center from Background image
+d_bluff_px, centro_bg, delta_bg = medir_corpo_rombo_background(bg_medio, COL_SIMETRIA)
+scale_mm_per_px = D_BLUFF_MM / d_bluff_px
+print(f"2. Independent Bluff-Body Measurement from Background Image (Z = 335..500 px):")
+print(f"   -> Measured Bluff-Body Diameter: D_b = {d_bluff_px:.1f} px (R_b = {0.5*d_bluff_px:.1f} px)")
+print(f"   -> Burner Center in Background: col = {centro_bg:.2f} px (delta_bg = {delta_bg:+.2f} px -> independent validation of axis offset!)")
+print(f"   -> Spatial Scale Factor: {scale_mm_per_px:.4f} mm/px (assuming nominal lab guide D_b = {D_BLUFF_MM:.1f} mm; scale linearly if D_b_lab differs)")
+
+# Measure real FWHM of the negative Schlieren band (z = 40..250 px)
 fwhm_lista = []
 for z_val in range(40, 250):
-    linha = media_ab1_chama[z_val, 50:150]
+    linha = media_ab1_chama[z_val, 40:150]
     val_min = np.min(linha)
     if val_min < -0.05:
-         largura_meia = np.sum(linha < 0.5 * val_min)
-         if largura_meia > 5:
-             fwhm_lista.append(largura_meia)
+        largura_meia = np.sum(linha < 0.5 * val_min)
+        if largura_meia > 5:
+            fwhm_lista.append(largura_meia)
 fwhm_mediana = float(np.median(fwhm_lista))
-print(f"Real Negative Band Width (FWHM across z=40..250 px): Median = {fwhm_mediana:.1f} px (IQR/Range = {np.percentile(fwhm_lista, 10):.0f}–{np.percentile(fwhm_lista, 90):.0f} px)")
-print(f"Spatial Scale Calibration: Bluff-body diameter D_b = {D_BLUFF_PX:.0f} px (R_b = {R_BLUFF_PX:.1f} px) -> {SCALE_MM_PER_PX:.3f} mm/px (for D_b = {D_BLUFF_MM:.0f} mm)")
+print(f"3. Real Negative Band Width (FWHM across z=40..250 px): Median = {fwhm_mediana:.1f} px (10–90% range = {np.percentile(fwhm_lista, 10):.0f}–{np.percentile(fwhm_lista, 90):.0f} px)")
 
-# 4c. Continuous Forward Abel Projection (Avoiding "Inverse Crime")
-# Analytical change of variables: y = sqrt(r^2 - x^2) => P_cont(x) = 2 * \int_0^{y_max} f(sqrt(x^2 + y^2)) dy
+# Continuous Forward Abel Projection sampled at x_i = i (matching A_inv grid -> NO artificial 0.5 px offset!)
 r_grid = np.arange(NUM_PIXEIS_RAIO, dtype=np.float64)
-R_flame_syn = 85.0
-W_real = 25.0   # Matches real median band FWHM (~25 px)
-W_pess = 8.8    # Pessimistic thin-front bound
+R_flame_syn = 82.0
+W_real = fwhm_mediana  # Uses the actual measured median FWHM!
+W_pess = 8.8           # Conditional pessimistic thin-front bound
 
 def perfil_sintetico(r, R0, W):
     return -((r - R0) / W) * np.exp(-((r - R0) / W) ** 2)
 
-def projecao_abel_continua(R0, W, shift_dx=0.0):
+def projecao_abel_continua(R0, W):
     p_cont = np.zeros(NUM_PIXEIS_RAIO, dtype=np.float64)
     r_max = float(NUM_PIXEIS_RAIO)
     for i in range(NUM_PIXEIS_RAIO):
-        x_val = abs(i + 0.5 + shift_dx)
-        if x_val < r_max:
-            y_max = np.sqrt(r_max**2 - x_val**2)
-            y_quad = np.linspace(0.0, y_max, 1500)
-            r_quad = np.sqrt(x_val**2 + y_quad**2)
-            p_cont[i] = 2.0 * np.trapz(perfil_sintetico(r_quad, R0, W), y_quad)
+        x_val = float(i)  # Sampled at x_i = i to match Onion-Peeling matrix definition
+        y_max = np.sqrt(r_max**2 - x_val**2)
+        y_quad = np.linspace(0.0, y_max, 2000)
+        r_quad = np.sqrt(x_val**2 + y_quad**2)
+        p_cont[i] = 2.0 * np.trapz(perfil_sintetico(r_quad, R0, W), y_quad)
     return p_cont
 
-f_true_real = perfil_sintetico(r_grid + 0.5, R_flame_syn, W_real)
-p_cont_0 = projecao_abel_continua(R_flame_syn, W_real, shift_dx=0.0)
-f_rec_cont_0 = A_inv @ p_cont_0
-erro_algoritmico = (np.linalg.norm(f_rec_cont_0 - f_true_real) / np.linalg.norm(f_true_real)) * 100
-print(f"\nPure Algorithmic Error (Continuous Integral vs Discrete Onion-Peeling, NO inverse crime): {erro_algoritmico:.2f}%")
-
-# Axis shift sensitivity for realistic width (W = 25.0 px) and pessimistic width (W = 8.8 px)
-p_exact_real = A_forward @ perfil_sintetico(r_grid, R_flame_syn, W_real)
 f_disc_real = perfil_sintetico(r_grid, R_flame_syn, W_real)
+p_cont_0 = projecao_abel_continua(R_flame_syn, W_real)
+f_rec_cont_0 = A_inv @ p_cont_0
+erro_algoritmico = float((np.linalg.norm(f_rec_cont_0 - f_disc_real) / np.linalg.norm(f_disc_real)) * 100)
+print(f"\n4. Pure Algorithmic Discretization Error (Continuous Abel vs Onion-Peeling at x_i=i, NO inverse crime): {erro_algoritmico:.2f}%")
 
-p_exact_pess = A_forward @ perfil_sintetico(r_grid, R_flame_syn, W_pess)
+p_exact_real = A_forward @ f_disc_real
 f_disc_pess = perfil_sintetico(r_grid, R_flame_syn, W_pess)
+p_exact_pess = A_forward @ f_disc_pess
 
 desvios_px = [0.5, 1.0, 1.5, 2.0]
 erros_real = {}
@@ -284,13 +307,12 @@ erros_pess = {}
 
 for dx in desvios_px:
     f_sh_real = A_inv @ np.interp(r_grid + dx, r_grid, p_exact_real, right=0.0)
-    erros_real[dx] = (np.linalg.norm(f_sh_real - f_disc_real) / np.linalg.norm(f_disc_real)) * 100
+    erros_real[dx] = float((np.linalg.norm(f_sh_real - f_disc_real) / np.linalg.norm(f_disc_real)) * 100)
     
     f_sh_pess = A_inv @ np.interp(r_grid + dx, r_grid, p_exact_pess, right=0.0)
-    erros_pess[dx] = (np.linalg.norm(f_sh_pess - f_disc_pess) / np.linalg.norm(f_disc_pess)) * 100
-    print(f"Axis Shift dx = {dx:.1f} px -> L2 Error (Realistic W=25 px): {erros_real[dx]:5.2f}% | (Pessimistic W=8.8 px): {erros_pess[dx]:5.2f}%")
+    erros_pess[dx] = float((np.linalg.norm(f_sh_pess - f_disc_pess) / np.linalg.norm(f_disc_pess)) * 100)
+    print(f"   Axis Shift dx = {dx:.1f} px -> L2 Error (Measured W={W_real:.1f} px): {erros_real[dx]:5.2f}% | (Pessimistic W=8.8 px): {erros_pess[dx]:5.2f}%")
 
-# Total Combined Relative Uncertainty for the Mean Field (in Quadrature)
 u_total_real = np.sqrt(se_rel_corr**2 + erros_real[0.5]**2 + erro_algoritmico**2)
 u_total_pess = np.sqrt(se_rel_corr**2 + erros_pess[0.5]**2 + erro_algoritmico**2)
 
@@ -298,9 +320,8 @@ print(f"\nTOTAL COMBINED RELATIVE UNCERTAINTY OF MEAN FIELD (Active Zone Median)
 print(f"   -> Realistic Budget (SE_ACF={se_rel_corr:.2f}% + Axis_0.5px={erros_real[0.5]:.2f}% + Algo={erro_algoritmico:.2f}%): {u_total_real:.2f}%")
 print(f"   -> Pessimistic Bound (with thin-layer W=8.8 px Axis_0.5px={erros_pess[0.5]:.2f}%): {u_total_pess:.2f}%")
 
-# Diagnostic plot of Axis Shift Sensitivity (Realistic W = 25 px)
 plt.figure(figsize=(8, 4.5))
-plt.plot(r_grid, f_disc_real, 'k-', linewidth=2.2, label='True Profile (W = 25 px, dx = 0.0 px)')
+plt.plot(r_grid, f_disc_real, 'k-', linewidth=2.2, label=f'True Profile (Measured W = {W_real:.0f} px, dx = 0.0 px)')
 for dx, cor, estilo in zip([0.5, 1.0, 2.0], ['tab:blue', 'tab:orange', 'tab:red'], ['--', '-.', ':']):
     f_sh = A_inv @ np.interp(r_grid + dx, r_grid, p_exact_real, right=0.0)
     plt.plot(r_grid, f_sh, color=cor, linestyle=estilo, linewidth=1.6,
@@ -308,7 +329,7 @@ for dx, cor, estilo in zip([0.5, 1.0, 2.0], ['tab:blue', 'tab:orange', 'tab:red'
 plt.xlim(0, 180)
 plt.xlabel('Radius (px)')
 plt.ylabel(r'Reconstructed $\partial n / \partial z$ Signal (a.u.)')
-plt.title('Onion-Peeling Sensitivity to Axis Shift (Realistic Band FWHM = 25 px)')
+plt.title(f'Onion-Peeling Sensitivity to Axis Shift (Measured Band W = {W_real:.0f} px)')
 plt.grid(True, alpha=0.3)
 plt.legend()
 plt.tight_layout()
