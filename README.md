@@ -2,8 +2,8 @@
 
 ## Identificação Académica e Contexto do Projeto
 
-* **Unidade Curricular:** Métodos Experimentais para Análise de Sistemas Energéticos (MEASE) — 2.º Ano de Mestrado
-* **Faculdade:** Instituto Superior Técnico
+* **Unidade Curricular:** Métodos Experimentais para Análise de Sistemas Energéticos (MEASE) — 2.º Ano de Mestrado Engenharia Mecânica
+* **Faculdade:** Instituto Superior Técnico (IST) — Universidade de Lisboa
 * **Tema do Trabalho:** Reconstrução Tomográfica 3D de Escoamentos Axissimétricos por Técnica de Schlieren e Transformada Inversa de Abel (*Onion-Peeling* / ART) e Análise da Comutatividade de Operadores Estatísticos
 * **Grupo:** Grupo 22
 * **Autores:** David Esteves (ist1116011), David Ferreira (ist 1107077) , Daniel Ascenso (ist 1113290)
