@@ -11,6 +11,9 @@ rms_chama_corr = np.load(os.path.join(DIR_PROCESSED, 'rms_ab1_corrigido.npy')).c
 rms_iso_corr = np.load(os.path.join(DIR_PROCESSED, 'rms_iso_ab1_corrigido.npy')).copy()
 rms_iso_raw = np.load(os.path.join(DIR_PROCESSED, 'rms_iso_ab1.npy')).copy()
 
+caminho_geom = os.path.join(DIR_PROCESSED, 'geometria_queimador.npy')
+r_bluff_px = float(np.load(caminho_geom)[1]) if os.path.exists(caminho_geom) else 54.0
+
 Z_MASK = 325
 for arr in (media_chama, rms_chama_corr, rms_iso_corr, rms_iso_raw):
     arr[Z_MASK:, :] = 0
@@ -19,25 +22,14 @@ RAIO_MIN = 25
 RAIO_MAX = 140
 
 def detetar_frente_altura(z_idx):
-    """
-    Operational definitions of the flame front at axial coordinate z_idx:
-      1. r_min_media (Primary): Minimum of the mean axial gradient band (dn/dz extremum, r ≈ 78-85 px).
-      2. r_rms_50 (Independent Verification): Outer radius where the noise-corrected RMS drops
-         to 50% of its shear-layer plateau maximum (r ≈ 101-108 px).
-    """
     perfil_m = uniform_filter1d(media_chama[z_idx, :], size=5)
     perfil_r = uniform_filter1d(rms_chama_corr[z_idx, :], size=5)
     
-    # 1. Primary Criterion: Minimum of Mean Field in [RAIO_MIN, RAIO_MAX]
     r_min_media = int(np.argmin(perfil_m[RAIO_MIN:RAIO_MAX]) + RAIO_MIN)
     
-    # 2. Independent Verification Criterion: Outer radius where corrected RMS drops to 50% of plateau
     rms_patamar = np.max(perfil_r[RAIO_MIN:110])
     indices_acima_50 = np.where(perfil_r[RAIO_MIN:160] >= 0.50 * rms_patamar)[0]
-    if len(indices_acima_50) > 0:
-        r_rms_50 = int(indices_acima_50[-1] + RAIO_MIN)
-    else:
-        r_rms_50 = r_min_media
+    r_rms_50 = int(indices_acima_50[-1] + RAIO_MIN) if len(indices_acima_50) > 0 else r_min_media
     return r_min_media, r_rms_50
 
 z_todas = np.arange(20, 316)
@@ -53,9 +45,11 @@ r_frente_media_smooth = uniform_filter1d(np.array(r_frente_media, dtype=np.float
 r_frente_rms50_smooth = uniform_filter1d(np.array(r_frente_rms50, dtype=np.float64), size=9)
 
 print("--- FLAME FRONT TRACKING (CENTER OF BAND vs OUTER 50% RMS BOUNDARY) ---")
+rm_dev, rr_dev = [], []
 for z_check in [40, 60, 80, 100, 120, 160, 200]:
     rm, rr = detetar_frente_altura(z_check)
-    # Also compute ISO half-width collapse (Uncorrected vs Corrected)
+    rm_dev.append(rm)
+    rr_dev.append(rr)
     iso_u_half = np.where(rms_iso_raw[z_check, 20:] < 0.5 * np.max(rms_iso_raw[z_check, 20:60]))[0]
     iso_c_half = np.where(rms_iso_corr[z_check, 20:] < 0.5 * np.max(rms_iso_corr[z_check, 20:60]))[0]
     r_iso_u = int(iso_u_half[0] + 20) if len(iso_u_half) > 0 else 20
@@ -67,7 +61,7 @@ alturas_z = [40, 80, 120]
 fig, axs = plt.subplots(1, 4, figsize=(21, 5.2))
 
 for i, z in enumerate(alturas_z):
-    raio = np.arange(rms_chama_corr.shape[1])
+    raio = np.arange(rms_chama_corr.shape[1]) + 0.5  # Ring center r_j = j + 0.5 px
     perfil_m = media_chama[z, :]
     perfil_c = rms_chama_corr[z, :]
     perfil_i_corr = rms_iso_corr[z, :]
@@ -80,8 +74,8 @@ for i, z in enumerate(alturas_z):
     axs[i].plot(raio, perfil_i_raw, 'b:', alpha=0.6, linewidth=1.2, label='ISO Uncorrected RMS')
     axs[i].plot(raio, perfil_i_corr, 'b-', linewidth=1.4, label='ISO Corrected RMS (Null)')
     
-    axs[i].axvline(r_m, color='green', linestyle='-', linewidth=2.0, label=f'Band Center R={r_m} px')
-    axs[i].axvline(r_r50, color='darkorange', linestyle='--', linewidth=2.0, label=f'Outer 50% RMS R={r_r50} px')
+    axs[i].axvline(r_m + 0.5, color='green', linestyle='-', linewidth=2.0, label=f'Band Center R={r_m} px')
+    axs[i].axvline(r_r50 + 0.5, color='darkorange', linestyle='--', linewidth=2.0, label=f'Outer 50% RMS R={r_r50} px')
     
     axs[i].set_title(f'Radial Profiles at Z = {z} px')
     axs[i].set_xlabel('Radius r (px)')
@@ -93,10 +87,13 @@ for i, z in enumerate(alturas_z):
 
 limite_cor = np.percentile(np.abs(media_chama[:Z_MASK, :]), 99)
 im = axs[3].imshow(media_chama, cmap='RdBu_r', aspect='auto', vmin=-limite_cor, vmax=limite_cor)
-axs[3].plot(r_frente_media_smooth, z_todas, color='lime', linewidth=2.4, label='Band Center: Mean Min (78–85 px)')
-axs[3].plot(r_frente_rms50_smooth, z_todas, color='gold', linestyle='--', linewidth=2.2, label='Outer 50% Corr. RMS (~107 px)')
+axs[3].plot(r_frente_media_smooth, z_todas, color='lime', linewidth=2.4,
+            label=f'Band Center: Mean Min ({min(rm_dev)}–{max(rm_dev)} px)')
+axs[3].plot(r_frente_rms50_smooth, z_todas, color='gold', linestyle='--', linewidth=2.2,
+            label=f'Outer 50% Corr. RMS ({min(rr_dev)}–{max(rr_dev)} px)')
 axs[3].axhline(Z_MASK, color='black', linestyle='--', alpha=0.6, label='Bluff-body Mask (Z=325)')
-axs[3].scatter([56], [320], color='cyan', edgecolor='black', marker='^', s=100, zorder=6, label='Bluff-body Lip (R_b≈56 px)')
+axs[3].scatter([r_bluff_px], [320], color='cyan', edgecolor='black', marker='^', s=100, zorder=6,
+               label=f'Bluff-body Lip (R_b={r_bluff_px:.1f} px)')
 
 axs[3].set_title(r'Mean $\partial n / \partial z$ (a.u.) & Operational Boundaries')
 axs[3].set_xlabel('Radius r (px)')

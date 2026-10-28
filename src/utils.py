@@ -1,13 +1,14 @@
 import os
 import numpy as np
 
-# Nominal physical diameter of the bluff-body in mm (confirm exact value in the lab guide)
+# Physical diameter of the bluff-body in mm (CONFIRM EXACT VALUE IN THE LAB GUIDE)
 D_BLUFF_MM = 50.0  
 
 def calcular_matriz_ART_inversa(num_pixeis):
     """
     Calculates the inverse geometric matrix for the Algebraic Reconstruction Technique
-    (Onion-Peeling) in axisymmetric geometries (sampled at x_i = i, r_j = j).
+    (Onion-Peeling) in axisymmetric geometries.
+    Note: The reconstructed pixel j corresponds to the ring [j, j+1] centered at r_j = j + 0.5 px.
     """
     A = np.zeros((num_pixeis, num_pixeis), dtype=np.float64)
     for i in range(num_pixeis):
@@ -32,10 +33,7 @@ def extrair_metade_direita(img_sub, col_simetria=256, num_pixeis_raio=256, delta
     return (1.0 - w) * img_sub[:, c0] + w * img_sub[:, c1]
 
 def carregar_delta_eixo(dir_processed):
-    """
-    Loads the measured axis parameters from process_flame.py.
-    Returns (delta_measured, delta_applied).
-    """
+    """Loads (delta_measured, delta_applied) from delta_eixo.npy."""
     caminho = os.path.join(dir_processed, 'delta_eixo.npy')
     if os.path.exists(caminho):
         dados = np.load(caminho)
@@ -45,23 +43,21 @@ def carregar_delta_eixo(dir_processed):
 def medir_corpo_rombo_background(bg_medio, col_nominal=256):
     """
     Measures the diameter in pixels (D_b_px) and the geometric center of the burner
-    directly in the lower region of the background image (Z = 335..500 px),
-    providing an independent validation of the axis and spatial scale.
+    in the lower region of the background image (Z = 335..500 px) with sign-corrected
+    sub-pixel parabolic refinement: idx + 0.5*(y0 - y2)/(y0 - 2*y1 + y2).
     """
     perfil_x = np.mean(bg_medio[335:500, :], axis=0)
     grad_x = np.abs(np.gradient(perfil_x))
     
-    # Search for the left and right edges of the burner in the physical window [180..240] and [280..340]
     x_esq = int(np.argmax(grad_x[180:240]) + 180)
     x_dir = int(np.argmax(grad_x[280:340]) + 280)
     
-    # Sub-pixel parabolic refinement at the gradient peaks
     def refinar_pico(arr, idx):
         if 1 <= idx < len(arr) - 1:
-            y0, y1, y2 = arr[idx - 1], arr[idx], arr[idx + 1]
-            denom = 2.0 * (2.0 * y1 - y0 - y2)
+            y0, y1, y2 = float(arr[idx - 1]), float(arr[idx]), float(arr[idx + 1])
+            denom = y0 - 2.0 * y1 + y2
             if abs(denom) > 1e-12:
-                return idx + (y0 - y2) / denom
+                return idx + 0.5 * (y0 - y2) / denom
         return float(idx)
     
     x_esq_sub = refinar_pico(grad_x, x_esq)

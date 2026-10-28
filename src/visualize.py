@@ -11,6 +11,9 @@ rms_ab1 = np.load(caminho_rms_corr if os.path.exists(caminho_rms_corr) else os.p
 media_ab2 = np.load(os.path.join(DIR_PROCESSED, 'media_ab2.npy')).copy()
 rms_ab2 = np.load(os.path.join(DIR_PROCESSED, 'rms_ab2.npy')).copy()
 
+caminho_geom = os.path.join(DIR_PROCESSED, 'geometria_queimador.npy')
+r_bluff_str = f" [R_b = {np.load(caminho_geom)[1]:.1f} px]" if os.path.exists(caminho_geom) else ""
+
 Z_MASK = 325
 for mat in (media_ab1, rms_ab1, media_ab2, rms_ab2):
     mat[Z_MASK:, :] = 0
@@ -24,7 +27,7 @@ def plot_campo(ax, matriz, titulo, vmin, vmax, cmap='RdBu_r'):
     im = ax.imshow(matriz, cmap=cmap, vmin=vmin, vmax=vmax, aspect='auto')
     ax.axhline(Z_MASK, color='black', linestyle='--', alpha=0.5, label='Bluff-body Mask')
     ax.set_title(titulo, fontsize=11.5)
-    ax.set_xlabel('Radius r (px) [R_bluff ≈ 58 px]')
+    ax.set_xlabel(f'Radius r (px){r_bluff_str}')
     ax.set_ylabel('Axial Coordinate z (px)')
     cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
     cbar.set_label(r'Reconstructed $\partial n / \partial z$ (a.u.)')
