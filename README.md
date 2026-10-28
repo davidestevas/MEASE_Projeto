@@ -14,22 +14,24 @@ Este trabalho foi desenvolvido no âmbito da unidade curricular de **Métodos Ex
 
 ---
 
-## 1. Grandeza Física Reconstruída ($\partial n / \partial z$) e Discretização Radial
+## 1. Grandeza Física Reconstruída ($\partial n / \partial z$), Discretização Radial ($r = j + 0.5$) e Normalização ($r / R_b$)
 Este projeto desenvolve e valida um *pipeline* numérico de reconstrução tomográfica planar baseado na **Transformada Inversa de Abel** discreta — implementada através da **Técnica de Reconstrução Algébrica (ART / *Onion-Peeling*)** — aplicado a registos **Schlieren** de alta velocidade ($f_s = 400\text{ fps}$, resolução espacial de $512 \times 512\text{ px}$) de três conjuntos experimentais:
 1. **Chama turbulenta estabilizada por corpo rombo (`Chama`)** — $N = 3027$ imagens instantâneas;
 2. **Jato isotérmico não-reativo (`ISO`)** — $N = 3887$ imagens instantâneas (caso de controlo / caso nulo);
 3. **Referência ótica de fundo (`Background`)** — $N = 717$ imagens sem escoamento.
 
-Na discretização geométrica do *Onion-Peeling*, cada píxel radial reconstruído $j \in \{0, \dots, 255\}$ representa o anel circular compreendido entre os raios $r_j = j$ e $r_{j+1} = j + 1$, pelo que o valor reconstruído $f_j$ corresponde fisicamente ao centro geométrico do anel **$r = j + 0.5\text{ px}$**.
+### Índice do Anel ($j$) vs. Raio Físico ($r = j + 0.5\text{ px}$) e Escala Adimensional ($r / R_b$)
+Na discretização geométrica do *Onion-Peeling*, cada índice de coluna reconstruída $j \in \{0, \dots, 255\}$ representa o anel circular compreendido entre os raios $r_j = j$ e $r_{j+1} = j + 1$, pelo que o valor reconstruído $f_j$ corresponde fisicamente ao centro geométrico do anel **$r = j + 0.5\text{ px}$**.  
+Para garantir que toda a caracterização geométrica é autofundamentada nos dados e independente de calibrações externas em milímetros, adota-se a **normalização adimensional $r / R_b$** pelo raio do corpo rombo medido diretamente na imagem de fundo ($R_b = 54.06\text{ px}$, $D_b = 2 R_b = 108.13\text{ px}$).
 
 ### Orientação da Lâmina (*Knife-Edge*), Paridade e Definição Operacional da Frente de Chama
 A partir da projeção subtraída do fundo médio $P(x, z) = I(x, z) - \bar{I}_{\text{bg}}(x, z)$, a recuperação da projeção média bruta ($\bar{P} = \bar{f} A^T$) demonstra que o sinal projetado no eixo de simetria é não-nulo e simétrico:
 $$\text{mediana}\, p(0) = -21.74\text{ u.a.} \approx \text{mediana}\, p(1..3) = -22.17\text{ u.a.} \neq 0$$
 Como o sinal projetado é uma função **par** relativamente ao eixo de simetria:
 - A lâmina Schlieren (*knife-edge*) interceta os raios defletidos na direção axial, medindo exclusivamente a componente axial da refração. Consequentemente, a matriz triangular superior padrão do *Onion-Peeling* ($A^{-1}$) é o operador matemático exato da inversão, mas o campo reconstruído $f(r, z) = A^{-1} P(x, z)$ representa o **gradiente axial local do índice de refração ($\partial n / \partial z$) em unidades arbitrárias (u.a.)**, e **não** a densidade absoluta $\rho(r, z)$.
-- Uma vez que a montagem mede apenas $\partial n / \partial z$, uma frente térmica perfeitamente paralela ao eixo produziria gradiente axial nulo. Assim, a localização da frente de chama é estabelecida através de uma **definição operacional dupla**:
-  1. **Critério Principal (Centro da Banda Térmica):** o extremo (mínimo) de $\partial n / \partial z$ no campo médio ($r = 81\text{--}85\text{ px}$ na zona desenvolvida $z = 40\text{--}200\text{ px}$, ancorado no bordo do corpo rombo a $R_b \approx 54.1\text{ px}$);
-  2. **Critério Independente de Verificação (Bordo Exterior de Flutuações):** o raio exterior onde o perfil de $\text{RMS}$ corrigido do ruído decai para $50\%$ do seu patamar máximo na camada de corte ($r = 95\text{--}103\text{ px}$ com a origem deslocada de $\delta = +5.28\text{ px}$, equivalente a $r = 101\text{--}108\text{ px}$ na coordenada nominal não deslocada).
+- Uma vez que a montagem mede apenas $\partial n / \partial z$, uma frente térmica perfeitamente paralela ao eixo produziria gradiente axial nulo. Assim, a localização da frente de chama é estabelecida através de uma **definição operacional dupla** (para $z = 40\text{--}200\text{ px}$):
+  1. **Critério Principal (Centro da Banda Térmica):** o extremo (mínimo) de $\partial n / \partial z$ no campo médio, localizado nos índices $j = 81\text{--}85$, correspondente ao raio físico **$r = 81.5\text{--}85.5\text{ px}$** e à posição adimensional **$r / R_b \approx 1.51\text{--}1.58$** (ancorado no bordo do corpo rombo $r / R_b = 1.00$ em $z \approx 320\text{ px}$);
+  2. **Critério Independente de Verificação (Bordo Exterior de Flutuações):** o raio exterior onde o perfil de $\text{RMS}$ corrigido do ruído decai para $50\%$ do seu patamar máximo na camada de corte, localizado nos índices $j = 95\text{--}103$, correspondente ao raio físico **$r = 95.5\text{--}103.5\text{ px}$** e à posição adimensional **$r / R_b \approx 1.77\text{--}1.91$**.
 
 ---
 
@@ -66,7 +68,7 @@ MEASE_Projeto22/
 │       ├── sigma_rec_bg.npy          # Mapa do ruído do sensor propagado por A^-1
 │       ├── media_raw_full.npy        # Imagem média bruta 512x512 da Chama (ambas as metades)
 │       ├── delta_eixo.npy            # Parâmetros medidos do eixo de simetria (delta e dispersão)
-│       └── geometria_queimador.npy   # Geometria medida no Background (D_b, R_b, centro_bg, escala)
+│       └── geometria_queimador.npy   # Geometria medida no Background (D_b, R_b, centro_bg)
 ├── src/
 │   ├── utils.py                      # Matriz A^-1, extração sub-píxel (delta) e geometria do queimador
 │   ├── process_flame.py              # Medição do eixo (janela +-15 px) + Abordagens 1 e 2 (Chama)
@@ -74,7 +76,7 @@ MEASE_Projeto22/
 │   ├── analysis_uncertainty.py       # Comutatividade, ruído, ACF SE(z) e orçamento de incerteza
 │   ├── visualize.py                  # Mapas 2x2 da Chama (máscara do corpo rombo Z >= 325 px)
 │   ├── visualize_iso.py              # Mapas 2x2 do ISO na mesma escala de cor da Chama (Caso Nulo)
-│   ├── analysis_flame_front.py       # Seguimento axial completo (Mínimo da Média + Bordo 50% RMS)
+│   ├── analysis_flame_front.py       # Seguimento axial completo (r = j + 0.5 px e r / R_b)
 │   └── analysis_clipping_bias.py     # Quantificação do viés severo induzido por zero-clipping
 ├── requirements.txt
 └── Readme.md
