@@ -9,8 +9,7 @@ from utils import (
     calcular_matriz_ART_inversa,
     extrair_metade_direita,
     carregar_delta_eixo,
-    medir_corpo_rombo_background,
-    D_BLUFF_MM
+    medir_corpo_rombo_background
 )
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -112,22 +111,21 @@ np.save(os.path.join(DIR_PROCESSED, 'sigma_rec_bg.npy'), sigma_rec_bg_full)
 np.save(os.path.join(DIR_PROCESSED, 'rms_ab1_corrigido.npy'), rms_ab1_corr_full)
 np.save(os.path.join(DIR_PROCESSED, 'rms_iso_ab1_corrigido.npy'), rms_iso_corr_full)
 
-# Measure and save burner geometry from Background so all visualization scripts use the exact measured R_b
 d_bluff_px, centro_bg, delta_bg = medir_corpo_rombo_background(bg_medio, COL_SIMETRIA)
 r_bluff_px = 0.5 * d_bluff_px
-scale_mm_per_px = D_BLUFF_MM / d_bluff_px
 np.save(
     os.path.join(DIR_PROCESSED, 'geometria_queimador.npy'),
-    np.array([d_bluff_px, r_bluff_px, centro_bg, delta_bg, scale_mm_per_px])
+    np.array([d_bluff_px, r_bluff_px, centro_bg, delta_bg])
 )
 
 rms_eixo_before = float(np.mean(rms_ab1_chama[:, 0]))
 rms_eixo_after = float(np.mean(rms_ab1_corr[:, 0]))
 pct_eixo = ((rms_eixo_after - rms_eixo_before) / rms_eixo_before) * 100.0
 
-r_frente_ref = int(np.argmin(media_ab1_chama[80, 25:140]) + 25)
-rms_front_before = float(rms_ab1_chama[80, r_frente_ref])
-rms_front_after = float(rms_ab1_corr[80, r_frente_ref])
+j_frente_ref = int(np.argmin(media_ab1_chama[80, 25:140]) + 25)
+r_frente_ref = j_frente_ref + 0.5
+rms_front_before = float(rms_ab1_chama[80, j_frente_ref])
+rms_front_after = float(rms_ab1_corr[80, j_frente_ref])
 pct_front = ((rms_front_after - rms_front_before) / rms_front_before) * 100.0
 
 r_slice = slice(20, 150)
@@ -136,23 +134,23 @@ frac_iso_sem_sinal = np.mean(rms_iso_ab1[:, r_slice] <= sigma_rec_bg[:, r_slice]
 snr_chama_frente = np.mean(rms_ab1_chama[40:200, 75:100] / sigma_rec_bg[40:200, 75:100])
 
 print(f"Mean Raw Sensor Noise (Background RMS, delta={delta_aplicado:+.2f} px): {np.mean(rms_bg_raw):.4f} a.u.")
-print(f"Reconstructed Background Noise: Axis R=0 = {np.mean(sigma_rec_bg[:, 0]):.4f} | Radial Mean = {np.mean(sigma_rec_bg):.4f} a.u.")
-print(f"Flame RMS at Axis (R=0): Uncorrected = {rms_eixo_before:.4f} -> Corrected = {rms_eixo_after:.4f} ({pct_eixo:+.1f}%)")
-print(f"Flame RMS at Front (Z=80, R={r_frente_ref}): Uncorrected = {rms_front_before:.4f} -> Corrected = {rms_front_after:.4f} ({pct_front:+.1f}%)")
-print(f"\nISO Null-Case Verification (r = 20..150 px):")
+print(f"Reconstructed Background Noise: Axis j=0 (r=0.5 px) = {np.mean(sigma_rec_bg[:, 0]):.4f} | Radial Mean = {np.mean(sigma_rec_bg):.4f} a.u.")
+print(f"Flame RMS at Axis (j=0, r=0.5 px): Uncorrected = {rms_eixo_before:.4f} -> Corrected = {rms_eixo_after:.4f} ({pct_eixo:+.1f}%)")
+print(f"Flame RMS at Front (Z=80, j={j_frente_ref}, r={r_frente_ref:.1f} px): Uncorrected = {rms_front_before:.4f} -> Corrected = {rms_front_after:.4f} ({pct_front:+.1f}%)")
+print(f"\nISO Null-Case Verification (j = 20..150):")
 print(f"   -> ISO RMS / sigma_rec range: {np.min(snr_iso_perfil):.2f} to {np.max(snr_iso_perfil):.2f} (Flame front is ~{snr_chama_frente:.1f}x noise)")
 print(f"   -> Pixels without resolvable signal (RMS_iso <= sigma_rec): {frac_iso_sem_sinal:.1f}%")
-print(f"   -> ISO RMS at R=20 px (Z=40..120): Uncorrected = {np.mean(rms_iso_ab1[40:121, 20]):.3f} -> Corrected = {np.mean(rms_iso_corr[40:121, 20]):.3f} a.u.\n")
+print(f"   -> ISO RMS at j=20 (r=20.5 px, Z=40..120): Uncorrected = {np.mean(rms_iso_ab1[40:121, 20]):.3f} -> Corrected = {np.mean(rms_iso_corr[40:121, 20]):.3f} a.u.\n")
 
 fig_rms, axs_rms = plt.subplots(1, 3, figsize=(15, 4.2))
 for i, z in enumerate([40, 80, 120]):
-    r_ax = np.arange(NUM_PIXEIS_RAIO) + 0.5  # Ring center r_j = j + 0.5 px
+    r_ax = np.arange(NUM_PIXEIS_RAIO) + 0.5
     axs_rms[i].plot(r_ax, rms_ab1_chama[z, :], 'r--', alpha=0.5, label='Flame Uncorrected RMS')
     axs_rms[i].plot(r_ax, rms_ab1_corr[z, :], 'r-', linewidth=1.8, label=r'Flame Corrected $\sqrt{RMS^2 - \sigma_{rec}^2}$')
     axs_rms[i].plot(r_ax, sigma_rec_bg[z, :], 'k:', linewidth=1.5, label=r'Propagated Noise $\sigma_{rec}$')
     axs_rms[i].plot(r_ax, rms_iso_corr[z, :], 'b-', alpha=0.8, linewidth=1.2, label='ISO Corrected RMS (Null Case)')
     axs_rms[i].set_title(f'Noise-Corrected RMS Profile (Z = {z} px)')
-    axs_rms[i].set_xlabel('Radius r (px)')
+    axs_rms[i].set_xlabel('Physical Radius r = j + 0.5 (px)')
     if i == 0:
         axs_rms[i].set_ylabel(r'Reconstructed $\partial n / \partial z$ RMS (a.u.)')
     axs_rms[i].set_xlim(0, 200)
@@ -172,11 +170,12 @@ FPS = 400.0
 DT_MS = 1000.0 / FPS
 
 z_probes = [40, 80, 120]
-r_probe = 82
+j_probe = 82
+r_probe_phys = j_probe + 0.5
 series_temporais = np.zeros((N_CHAMA, len(z_probes)), dtype=np.float64)
-a_inv_row = A_inv[r_probe, :]
+a_inv_row = A_inv[j_probe, :]
 
-print(f"Extracting chronological time series at Flame Front R={r_probe} px (with delta={delta_aplicado:+.2f} px)...")
+print(f"Extracting chronological time series at Flame Front index j={j_probe} (r={r_probe_phys:.1f} px, r/R_b={r_probe_phys/r_bluff_px:.2f}, delta={delta_aplicado:+.2f} px)...")
 for idx_f, arq in enumerate(arquivos_chama):
     img = iio.imread(arq).astype(np.float64)
     img_sub = img - bg_medio
@@ -208,7 +207,6 @@ for idx_z, z_val in enumerate(z_probes):
     fator_inflacao = np.sqrt(tau_int_frames)
     neff_dict[z_val] = n_eff
     
-    # Active-zone median relative SE at this height's N_eff(z)
     se_rel_z = (razao_rms_media_mediana / np.sqrt(n_eff)) * 100.0
     se_rel_z_dict[z_val] = se_rel_z
     
@@ -226,7 +224,7 @@ for idx_z, z_val in enumerate(z_probes):
     red_boot = ((se_acf_probe - se_boot) / se_acf_probe) * 100.0
     boot_diff_pct[z_val] = red_boot
     
-    print(f"Probe (Z={z_val:3d}, R={r_probe}): Zero-crossing = {lag_corte} frames ({lag_corte*DT_MS:.1f} ms)")
+    print(f"Probe (Z={z_val:3d}, j={j_probe}, r={r_probe_phys:.1f} px): Zero-crossing = {lag_corte} frames ({lag_corte*DT_MS:.1f} ms)")
     print(f"   -> Integral Time Scale tau_int = {tau_int_ms:.2f} ms ({tau_int_frames:.2f} frames/indep. sample)")
     print(f"   -> N_eff(Z={z_val}) = {n_eff:.0f} | Active-Zone Relative SE(Z={z_val}) = {se_rel_z:.2f}%")
     print(f"   -> Probe SE: Naive={se_naive_probe:.4f}, ACF={se_acf_probe:.4f} (conservative), Bootstrap={se_boot:.4f} (-{red_boot:.1f}% vs ACF)")
@@ -238,7 +236,7 @@ for idx_z, z_val in enumerate(z_probes):
 plt.axhline(0, color='black', linestyle='--', alpha=0.6)
 plt.xlabel('Time Lag $\\tau$ (ms) [at 400 fps]')
 plt.ylabel('Autocorrelation Coefficient $\\rho(\\tau)$')
-plt.title(f'Temporal Autocorrelation in the Flame Front (R = {r_probe} px, $\\delta = {delta_aplicado:+.2f}$ px)')
+plt.title(f'Temporal Autocorrelation at Flame Front (j={j_probe}, r={r_probe_phys:.1f} px, $\\delta = {delta_aplicado:+.2f}$ px)')
 plt.grid(True, alpha=0.3)
 plt.legend()
 plt.tight_layout()
@@ -268,10 +266,10 @@ if os.path.exists(caminho_delta):
         print(f"   -> Global optimum: delta = {d_med:+.2f} px (10%-min interval: [{d_10_l:+.2f}, {d_10_h:+.2f}] px)")
         print(f"   -> Axial z-blocks range: [{d_b_l:+.2f}, {d_b_h:+.2f}] px | Block dispersion = +- {d_std:.2f} px (justifies +-0.5 px budget)")
 
-print(f"2. Independent Bluff-Body Measurement from Background Image (Z = 335..500 px, corrected sub-pixel parabola):")
-print(f"   -> Measured Bluff-Body Diameter: D_b = {d_bluff_px:.2f} px (R_b = {r_bluff_px:.2f} px)")
+print(f"2. Independent Bluff-Body Measurement from Background Image (Z = 335..500 px):")
+print(f"   -> Measured Bluff-Body Diameter: D_b = {d_bluff_px:.2f} px (Radius R_b = {r_bluff_px:.2f} px)")
 print(f"   -> Burner Center in Background: col = {centro_bg:.2f} px (delta_bg = {delta_bg:+.2f} px vs flame delta = {delta_medido:+.2f} px)")
-print(f"   -> Spatial Scale Factor: {scale_mm_per_px:.4f} mm/px (for D_b = {D_BLUFF_MM:.1f} mm — confirm exact value in lab guide)")
+print(f"   -> Primary Normalization Scale: dimensionless r / R_b (with R_b = {r_bluff_px:.2f} px, independent of mm calibration)")
 
 fwhm_lista = []
 for z_val in range(40, 250):
@@ -282,12 +280,14 @@ for z_val in range(40, 250):
         if largura_meia > 5:
             fwhm_lista.append(largura_meia)
 fwhm_mediana = float(np.median(fwhm_lista))
-print(f"3. Real Negative Band Width (FWHM across z=40..250 px): Median = {fwhm_mediana:.1f} px (10–90% range = {np.percentile(fwhm_lista, 10):.0f}–{np.percentile(fwhm_lista, 90):.0f} px)")
+fwhm_p10, fwhm_p90 = float(np.percentile(fwhm_lista, 10)), float(np.percentile(fwhm_lista, 90))
+print(f"3. Real Negative Band Width (FWHM across z=40..250 px):")
+print(f"   -> In pixels: Median = {fwhm_mediana:.1f} px (10–90% range = {fwhm_p10:.0f}–{fwhm_p90:.0f} px)")
+print(f"   -> Dimensionless (FWHM / R_b): Median = {fwhm_mediana/r_bluff_px:.2f} (10–90% range = {fwhm_p10/r_bluff_px:.2f}–{fwhm_p90/r_bluff_px:.2f})")
 
-# Point 2: Pixel j is the ring [j, j+1] with geometric center at r_j = j + 0.5 px
 r_grid = np.arange(NUM_PIXEIS_RAIO, dtype=np.float64)
 r_ring_centers = r_grid + 0.5
-R_flame_syn = 82.0
+R_flame_syn = 82.5
 W_real = fwhm_mediana
 W_pess = 8.8
 
@@ -309,7 +309,7 @@ f_true_centers = perfil_sintetico(r_ring_centers, R_flame_syn, W_real)
 p_cont_0 = projecao_abel_continua(R_flame_syn, W_real)
 f_rec_cont_0 = A_inv @ p_cont_0
 erro_algoritmico = float((np.linalg.norm(f_rec_cont_0 - f_true_centers) / np.linalg.norm(f_true_centers)) * 100)
-print(f"\n4. Pure Algorithmic Discretization Error (evaluated at ring centers r_j = j + 0.5 px, NO inverse crime): {erro_algoritmico:.2f}%")
+print(f"\n4. Pure Algorithmic Discretization Error (evaluated at ring centers r = j + 0.5 px, NO inverse crime): {erro_algoritmico:.2f}%")
 
 p_exact_real = A_forward @ f_true_centers
 f_true_pess = perfil_sintetico(r_ring_centers, R_flame_syn, W_pess)
@@ -327,7 +327,6 @@ for dx in desvios_px:
     erros_pess[dx] = float((np.linalg.norm(f_sh_pess - f_true_pess) / np.linalg.norm(f_true_pess)) * 100)
     print(f"   Axis Shift dx = {dx:.1f} px -> L2 Error (Measured W={W_real:.0f} px): {erros_real[dx]:5.2f}% | (Pessimistic W=8.8 px): {erros_pess[dx]:5.2f}%")
 
-# Height-dependent total combined uncertainty u_total(z)
 u_tot_z = {
     z_val: np.sqrt(se_rel_z_dict[z_val]**2 + erros_real[0.5]**2 + erro_algoritmico**2)
     for z_val in z_probes
@@ -350,7 +349,7 @@ for dx, cor, estilo in zip([0.5, 1.0, 2.0], ['tab:blue', 'tab:orange', 'tab:red'
     plt.plot(r_ring_centers, f_sh, color=cor, linestyle=estilo, linewidth=1.6,
              label=f'Shift dx = {dx:.1f} px (L2 Err = {erros_real[dx]:.1f}%)')
 plt.xlim(0, 180)
-plt.xlabel('Radius r (px) [ring center j + 0.5]')
+plt.xlabel('Physical Radius r = j + 0.5 (px)')
 plt.ylabel(r'Reconstructed $\partial n / \partial z$ Signal (a.u.)')
 plt.title(f'Onion-Peeling Sensitivity to Axis Shift (Measured Band W = {W_real:.0f} px)')
 plt.grid(True, alpha=0.3)

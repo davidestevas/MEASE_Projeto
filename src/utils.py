@@ -1,14 +1,11 @@
 import os
 import numpy as np
 
-# Physical diameter of the bluff-body in mm (CONFIRM EXACT VALUE IN THE LAB GUIDE)
-D_BLUFF_MM = 50.0  
-
 def calcular_matriz_ART_inversa(num_pixeis):
     """
     Calculates the inverse geometric matrix for the Algebraic Reconstruction Technique
     (Onion-Peeling) in axisymmetric geometries.
-    Note: The reconstructed pixel j corresponds to the ring [j, j+1] centered at r_j = j + 0.5 px.
+    Note: The index j in {0, ..., N-1} represents the ring [j, j+1] with physical center at r = j + 0.5 px.
     """
     A = np.zeros((num_pixeis, num_pixeis), dtype=np.float64)
     for i in range(num_pixeis):
@@ -43,7 +40,7 @@ def carregar_delta_eixo(dir_processed):
 def medir_corpo_rombo_background(bg_medio, col_nominal=256):
     """
     Measures the diameter in pixels (D_b_px) and the geometric center of the burner
-    in the lower region of the background image (Z = 335..500 px) with sign-corrected
+    in the lower region of the background image (Z = 335..500 px) with
     sub-pixel parabolic refinement: idx + 0.5*(y0 - y2)/(y0 - 2*y1 + y2).
     """
     perfil_x = np.mean(bg_medio[335:500, :], axis=0)
