@@ -89,7 +89,7 @@ for i, z in enumerate(alturas_z):
         axs[i].set_ylabel(r'Reconstructed $\partial n / \partial z$ Signal (a.u.)')
     axs[i].set_xlim(0, 180)
     axs[i].grid(True, alpha=0.3)
-    axs[i].legend(fontsize=7.8, loc='upper right')
+    axs[i].legend(fontsize=7.8, loc='center right')
 
 limite_cor = np.percentile(np.abs(media_chama[:Z_MASK, :]), 99)
 im = axs[3].imshow(media_chama, cmap='RdBu_r', aspect='auto', vmin=-limite_cor, vmax=limite_cor)
