@@ -80,3 +80,40 @@ MEASE_Projeto22/
 │   └── analysis_clipping_bias.py     # Quantificação do viés severo induzido por zero-clipping
 ├── requirements.txt
 └── Readme.md
+```
+
+---
+
+## 4. Síntese dos Resultados Principais e Orçamento de Incertezas
+
+1. **Determinação Empírica do Eixo de Simetria ($\delta$) e Geometria Adimensional ($r / R_b$):**
+   * A minimização da assimetria par $|M(x_0 + r, z) - M(x_0 - r, z)|$ numa janela alargada de $\pm 15\text{ px}$ sobre a imagem média bruta ($512 \times 512$) localiza o eixo real de simetria em **$\delta = +5.28\text{ px}$** (coluna $261.28$), com região a 10% do mínimo em $[+4.70, +5.64]\text{ px}$. Por blocos axiais de $z$, o ótimo varia entre $+4.63\text{ e }+5.39\text{ px}$, apresentando uma dispersão de **$\pm 0.39\text{ px}$** ($\approx 0.4\text{ px}$), o que fundamenta empiricamente a incerteza residual de $\pm 0.5\text{ px}$ adotada no orçamento de incerteza.
+   * **Validação Independente no Background:** A deteção direta dos bordos do queimador na imagem de fundo ($Z = 335\text{--}500\text{ px}$, com refinamento parabólico sub-píxel) mede um diâmetro do corpo rombo de **$D_b = 108.13\text{ px}$** (raio **$R_b = 54.06\text{ px}$**) centrado na coluna **$260.85\text{ px}$** ($\delta_{\text{bg}} = +4.85\text{ px}$), validando de forma independente o desvio do eixo ($\Delta \delta = 0.43\text{ px}$ face a $+5.28\text{ px}$). Usando $R_b = 54.06\text{ px}$ como escala característica, a largura mediana da banda negativa ($\text{FWHM} = 30.0\text{ px}$, intervalo $10\text{--}90\%$ de $25\text{--}37\text{ px}$) corresponde a **$\text{FWHM} / R_b \approx 0.55$** ($0.46\text{--}0.68$).
+2. **Viés de Truncatura (*Zero-Clipping*):** Com o deslocamento $\delta = +5.28\text{ px}$ aplicado consistentemente, truncar os valores negativos após a subtração de fundo (`img_sub < 0 = 0`) destrói **$92.9\%$** da norma $L_2$ do campo médio no domínio do escoamento ($Z < 325\text{ px}$), reduzindo-a de $87.5204$ para $6.1986$ (retendo apenas $7.1\%$).
+3. **Propagação de Ruído e Caso Nulo ISO:**
+   * A propagação analítica da variância do fundo ($\text{Var}(f_{\text{bg}}) = \text{Var}(P_{\text{bg}}) ((A^{-1})^T)^{\circ 2}$) resulta num ruído reconstruído $\sigma_{\text{rec}} = 0.7858\text{ u.a.}$ no anel do eixo ($j=0$, $r=0.5\text{ px}$) e $0.0598\text{ u.a.}$ em média radial.
+   * A correção em quadratura $\text{RMS}_{\text{corr}} = \sqrt{\max(\text{RMS}_{\text{ab1}}^2 - \sigma_{\text{rec}}^2, 0)}$ reduz o RMS da chama em **$-15.0\%$** no eixo ($1.3675 \to 1.1624\text{ u.a.}$) e em **$-1.3\%$** na frente de chama ($0.4225 \to 0.4170\text{ u.a.}$ em $Z=80, j=85, r=85.5\text{ px}$).
+   * No jato isotérmico (`ISO`), $\text{RMS}_{\text{ISO}} / \sigma_{\text{rec}} \in [0.75, 1.23]$ para $j = 20\text{--}150$, com **$79.7\%$** dos píxeis sem sinal resolvível acima do ruído (enquanto na frente de chama o sinal é $\sim 10.3\times$ o ruído). Após a subtração de $\sigma_{\text{rec}}^2$, o RMS ISO em $j=20$ ($r=20.5\text{ px}$) cai de $0.104$ para $0.015\text{ u.a.}$ e a meia-largura aparente colapsa de $44.5\text{--}56.5\text{ px}$ para $20.5\text{--}23.5\text{ px}$, confirmando o caso ISO como **caso nulo**.
+4. **Orçamento Global de Incertezas (Aplicável Exclusivamente ao Campo Médio):**
+   * **Erro Padrão Estatístico em Função da Altura $\text{SE}(z)$:** Avaliado a partir de 3 sondas temporais ($400\text{ fps}$) no centro da banda reativa ($j = 82$, $r = 82.5\text{ px}$, $r / R_b = 1.53$), o número efetivo de amostras independentes varia cerca de $4\times$ com a altura axial: **$N_{\text{eff}} = 174$** ($\tau_{\text{int}} = 21.80\text{ ms}$) em $Z=40\text{ px}$, **$N_{\text{eff}} = 274$** ($\tau_{\text{int}} = 13.83\text{ ms}$) em $Z=80\text{ px}$ e **$N_{\text{eff}} = 692$** ($\tau_{\text{int}} = 5.47\text{ ms}$) em $Z=120\text{ px}$. Isto traduz-se num erro padrão relativo mediano na zona ativa de **$5.54\%$**, **$4.41\%$** e **$2.77\%$**, respetivamente (vs. $1.33\%$ ingénuo e $3.74\%$ usando a média $N_{\text{eff}} = 380$). O estimador por ACF constitui um limite superior conservador, situando-se o *Moving Block Bootstrap* entre **$9\%\text{ e }32\%$** abaixo da ACF.
+   * **Erro do Eixo ($\pm 0.5\text{ px}$) e Erro Algorítmico (sem *inverse crime*):** Utilizando a largura real medida da banda negativa (**$\text{FWHM mediana} = 30.0\text{ px}$**, $\text{FWHM}/R_b \approx 0.55$), um desvio residual de $\pm 0.5\text{ px}$ induz um erro $L_2$ de **$2.95\%$**. O erro puro de discretização do algoritmo *Onion-Peeling* face ao integral contínuo de Abel (sem *inverse crime*, avaliado no centro geométrico dos anéis $r = j + 0.5\text{ px}$) é de **$0.35\%$**.
+   * **Incerteza Combinada em Quadratura:** Combinando $\text{SE}(z)$, erro do eixo ($2.95\%$) e erro algorítmico ($0.35\%$), a incerteza relativa combinada realista do campo médio situa-se no intervalo de **$4.1\%\text{ a }6.3\%$ ($\approx 4\text{--}6\%$)** em função da altura axial ($4.06\%$ em $Z=120\text{ px}$, $5.32\%$ em $Z=80\text{ px}$ e $6.28\%$ em $Z=40\text{ px}$; ou **$4.78\%$** tomando a referência média $N_{\text{eff}}=380$), e num limite pessimista condicional de **$10.55\%$** para uma camada fina $W = 8.8\text{ px}$.
+
+---
+
+## 5. Ordem Correta de Execução dos Scripts
+
+O script `analysis_uncertainty.py` **tem obrigatoriamente de ser executado antes** dos scripts de visualização (`visualize.py`, `visualize_iso.py`) e de seguimento da frente de chama (`analysis_flame_front.py`), uma vez que gera e grava as matrizes de RMS corrigidas do ruído (`rms_ab1_corrigido.npy` e `rms_iso_ab1_corrigido.npy`) e a geometria medida do queimador (`geometria_queimador.npy`):
+
+**Sequência obrigatória:**  
+`process_flame.py` $\to$ `process_iso.py` $\to$ `analysis_uncertainty.py` $\to$ `visualize.py` $\to$ `visualize_iso.py` $\to$ `analysis_flame_front.py` $\to$ `analysis_clipping_bias.py`
+
+```bash
+python src/process_flame.py
+python src/process_iso.py
+python src/analysis_uncertainty.py
+python src/visualize.py
+python src/visualize_iso.py
+python src/analysis_flame_front.py
+python src/analysis_clipping_bias.py
+```
